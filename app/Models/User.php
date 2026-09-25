@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
@@ -35,5 +36,10 @@ class User extends Authenticatable
     public function businesses(): BelongsToMany
     {
         return $this->belongsToMany(Business::class)->withTimestamps();
+    }
+      // Relación con el rol del usuario
+    public function role(): BelongsTo
+    {
+    return $this->belongsTo(Role::class);
     }
 }

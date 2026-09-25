@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Filament\Resources\Playlists\Pages;
+namespace App\Filament\Admin\Resources\Users\Pages;
 
-use App\Filament\Resources\Playlists\PlaylistResource;
+use App\Filament\Admin\Resources\Users\UserResource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditPlaylist extends EditRecord
+class EditUser extends EditRecord
 {
-    protected static string $resource = PlaylistResource::class;
+    protected static string $resource = UserResource::class;
 
     protected function getHeaderActions(): array
     {

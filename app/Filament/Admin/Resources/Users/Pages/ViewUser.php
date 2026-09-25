@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\Playlists\Pages;
+namespace App\Filament\Admin\Resources\Users\Pages;
 
-use App\Filament\Resources\Playlists\PlaylistResource;
+use App\Filament\Admin\Resources\Users\UserResource;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
-class ViewPlaylist extends ViewRecord
+class ViewUser extends ViewRecord
 {
-    protected static string $resource = PlaylistResource::class;
+    protected static string $resource = UserResource::class;
 
     protected function getHeaderActions(): array
     {

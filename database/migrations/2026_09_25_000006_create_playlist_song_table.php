@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('playlist_song', function (Blueprint $table) {
             $table->foreignId('playlist_id')->constrained()->cascadeOnDelete();
             $table->foreignId('song_id')->index()->constrained()->cascadeOnDelete();
-            $table->unsignedInteger('position');
+            $table->unsignedInteger('position')->default(0);
             $table->unique(['playlist_id', 'song_id']);
             $table->index(['playlist_id', 'position']);
             $table->timestamps();

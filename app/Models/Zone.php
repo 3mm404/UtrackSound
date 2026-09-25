@@ -11,7 +11,10 @@ class Zone extends Model
         'name',
         'business_id',
         'playlist_id',
+        'output_channel',
+        'volume',
     ];
+
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

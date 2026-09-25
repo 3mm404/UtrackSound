@@ -6,6 +6,7 @@ use App\Filament\Admin\Resources\Playlists\Pages\CreatePlaylist;
 use App\Filament\Admin\Resources\Playlists\Pages\EditPlaylist;
 use App\Filament\Admin\Resources\Playlists\Pages\ListPlaylists;
 use App\Filament\Admin\Resources\Playlists\Pages\ViewPlaylist;
+use App\Filament\Admin\Resources\Playlists\RelationManagers\SongsRelationManager;
 use App\Filament\Admin\Resources\Playlists\Schemas\PlaylistForm;
 use App\Filament\Admin\Resources\Playlists\Schemas\PlaylistInfolist;
 use App\Filament\Admin\Resources\Playlists\Tables\PlaylistsTable;
@@ -22,7 +23,7 @@ class PlaylistResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static ?string $recordTitleAttribute = 'Playlist';
+    protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema
     {
@@ -42,7 +43,7 @@ class PlaylistResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            SongsRelationManager::class,
         ];
     }
 

@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Song extends Model
 {
+    protected $fillable = [
+        'title',
+        'artist',
+        'file_path',
+    ];
     public function playlists(): BelongsToMany
     {
         return $this->belongsToMany(Playlist::class)->withPivot('position')->withTimestamps();

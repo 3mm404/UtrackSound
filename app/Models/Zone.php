@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Zone extends Model
 {
+    protected $fillable = [
+        'name',
+        'business_id',
+        'playlist_id',
+    ];
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

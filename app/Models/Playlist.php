@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Playlist extends Model
 {
+    protected $fillable = [
+        'name',
+        'business_id',
+    ];
     public function business(): BelongsTo
     {
         return $this->belongsTo(Business::class);

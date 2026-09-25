@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Business extends Model
 {
+    protected $fillable = [
+        'name',
+        'address',
+        'phone',
+        'email',
+        'website',
+    ];
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)->withTimestamps();

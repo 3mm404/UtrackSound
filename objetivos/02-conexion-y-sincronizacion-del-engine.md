@@ -4,6 +4,8 @@ Fecha: **25 de septiembre de 2026**.
 
 Este documento resume el trabajo de las etapas **2. Conectar y registrar el equipo** y **3. Sincronizar mediante WebSocket**. Complementa el [contrato de la API v1](01-contrato-laravel-engine-api-v1.md).
 
+El cierre específico de la etapa 3 y la continuidad hacia el objetivo 4 están en [Objetivo 03 — Sincronizar mediante WebSocket](03-sincronizacion-mediante-websocket.md).
+
 **Estado: objetivo cerrado para el alcance de conexión y sincronización sin audio.** Implementación local de Laravel y Go verificada con pruebas automatizadas, integración real entre Laravel, Reverb, worker y agente Go, y revisión del panel en navegador. La migración está aplicada en la base de datos local. No incluye despliegue en producción ni reproducción de audio.
 
 ## 1. Resultado de esta etapa

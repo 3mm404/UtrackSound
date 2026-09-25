@@ -14,29 +14,26 @@ class UserForm
     {
         return $schema
             ->components([
-                TextInput::make('name')
-                    ->required(),
+TextInput::make('name')
+    ->required(),
 
-                TextInput::make('email')
-                    ->label('Email address')
-                    ->email()
-                    ->required(),
+TextInput::make('email')
+    ->label('Email address')
+    ->email()
+    ->required(),
 
-                Select::make('businesses')
-                    ->label('Negocios')
-                    ->relationship('businesses', 'name')
-                    ->multiple()
-                    ->preload()
-                    ->searchable(),
+Select::make('role_id')
+    ->label('Rol')
+    ->relationship('role', 'name')
+    ->required()
+    ->preload(),
 
-                DateTimePicker::make('email_verified_at'),
-
-                TextInput::make('password')
-                    ->password()
-                    ->required(),
-
-                Toggle::make('is_super_admin')
-                    ->required(),
+Select::make('businesses')
+    ->label('Negocios')
+    ->relationship('businesses', 'name')
+    ->multiple()
+    ->preload()
+    ->searchable(),
             ]);
     }
 }

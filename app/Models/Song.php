@@ -12,8 +12,9 @@ class Song extends Model
         'artist',
         'file_path',
     ];
+
     public function playlists(): BelongsToMany
     {
-        return $this->belongsToMany(Playlist::class)->withPivot('position')->withTimestamps();
+        return $this->belongsToMany(Playlist::class)->using(PlaylistSong::class)->withPivot('position')->withTimestamps();
     }
 }

@@ -12,6 +12,13 @@ use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
+it('delivers a specific song in the command API', function () {
+    [$engine, $song, $zone] = audioEngine();
+    $engine->forceFill(['engine_version' => '0.6.0'])->save();
+    app(EngineConfiguration::class)->enqueue($engine, (string) $zone->id, 'play', (string) $song->id);
+    $this->getJson('/api/v1/engine/commands')->assertOk()->assertJsonPath('data.0.song_id', (string) $song->id);
+});
+
 function audioEngine(string $profile = EngineAudio::PROFILE): array
 {
     config(['engine.media_url' => 'https://localhost']);

@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use Illuminate\Foundation\Auth\User as AuthUser;
 use App\Models\Zone;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Foundation\Auth\User as AuthUser;
 
 class ZonePolicy
 {
     use HandlesAuthorization;
-    
+
+    public function before(AuthUser $authUser): ?bool
+    {
+        return $authUser->is_super_admin ? true : null;
+    }
+
     public function viewAny(AuthUser $authUser): bool
     {
         return $authUser->can('ViewAny:Zone');
@@ -29,7 +34,7 @@ class ZonePolicy
 
     public function update(AuthUser $authUser, Zone $zone): bool
     {
-        return $authUser->can('Update:Zone');
+        return $authUser->can('Update:Zone') && $authUser->businesses()->whereKey($zone->business_id)->exists();
     }
 
     public function delete(AuthUser $authUser, Zone $zone): bool
@@ -71,5 +76,4 @@ class ZonePolicy
     {
         return $authUser->can('Reorder:Zone');
     }
-
 }

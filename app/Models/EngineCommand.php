@@ -15,4 +15,13 @@ class EngineCommand extends Model
     {
         return ['result' => 'array', 'expires_at' => 'datetime'];
     }
+
+    public function statusLabel(): string
+    {
+        return match ($this->result['outcome'] ?? null) {
+            'succeeded' => 'Confirmada',
+            'failed' => 'Fallida',
+            default => $this->expires_at->isPast() ? 'Plazo vencido — sin confirmación' : 'Pendiente de confirmación',
+        };
+    }
 }

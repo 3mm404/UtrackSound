@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Validation\ValidationException;
 
 class Zone extends Model
@@ -43,6 +44,32 @@ class Zone extends Model
     public function engine(): BelongsTo
     {
         return $this->belongsTo(Engine::class);
+    }
+
+    public function latestCommand(): HasOne
+    {
+        return $this->hasOne(EngineCommand::class, 'zone_id')->ofMany(['created_at' => 'max', 'sequence' => 'max']);
+    }
+
+    public function reportedState(): array
+    {
+        return collect($this->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $this->id) ?? [];
+    }
+
+    public function configurationStatus(): string
+    {
+        if (! $this->engine?->isOnline()) {
+            return 'Sin conexión — pendiente de verificar';
+        }
+        if ($this->engine->observed_state['config_error'] ?? null) {
+            return 'Error de configuración';
+        }
+        $state = $this->reportedState();
+
+        return isset($state['volume']) && (int) $state['volume'] === (int) $this->volume
+            && ($state['playlist_id'] ?? null) === ($this->playlist_id ? (string) $this->playlist_id : null)
+            && ($this->engine->observed_state['applied_config_revision'] ?? 0) === $this->engine->config_revision
+                ? 'Configuración confirmada' : 'Configuración pendiente';
     }
 
     public function business(): BelongsTo

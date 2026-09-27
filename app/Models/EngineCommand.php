@@ -9,7 +9,7 @@ class EngineCommand extends Model
 {
     use HasUuids;
 
-    protected $fillable = ['engine_id', 'sequence', 'zone_id', 'config_revision', 'action', 'expires_at'];
+    protected $fillable = ['engine_id', 'sequence', 'zone_id', 'config_revision', 'action', 'song_id', 'expires_at'];
 
     protected function casts(): array
     {

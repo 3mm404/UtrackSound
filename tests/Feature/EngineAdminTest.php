@@ -68,7 +68,9 @@ it('shows reported zone state and limits the list to the users businesses', func
     $foreign = Zone::create(['name' => 'Lobby privado', 'business_id' => $other->business_id, 'engine_id' => $other->id]);
     $engine->issueToken();
     $engine->forceFill(['last_seen_at' => now(), 'observed_state' => ['zones' => [
-        ['zone_id' => (string) $zone->id, 'volume' => 35, 'playlist_id' => '20'],
+        ['zone_id' => (string) $zone->id, 'volume' => 35, 'playlist_id' => '20',
+            'state' => 'error', 'song_id' => '30', 'channel_mode' => 'mono',
+            'error' => ['code' => 'audio_download_failed', 'message' => 'Tiempo de espera agotado']],
     ]]])->save();
     Filament::setCurrentPanel(Filament::getPanel('admin'));
     $this->actingAs($user);
@@ -77,6 +79,10 @@ it('shows reported zone state and limits the list to the users businesses', func
         ->assertCanSeeTableRecords([$zone])->assertCanNotSeeTableRecords([$foreign])
         ->assertTableColumnStateSet('applied_volume', 35, $zone)
         ->assertTableColumnStateSet('applied_playlist', '20', $zone)
+        ->assertTableColumnStateSet('playback_state', 'error', $zone)
+        ->assertTableColumnStateSet('playing_song', '30', $zone)
+        ->assertTableColumnStateSet('applied_mode', 'mono', $zone)
+        ->assertTableColumnStateSet('playback_error', 'Tiempo de espera agotado', $zone)
         ->assertTableColumnStateSet('engine_online', 'Actual', $zone);
     $engine->forceFill(['last_seen_at' => now()->subSeconds(31)])->save();
     Livewire::test(ManageZones::class)->assertTableColumnStateSet('engine_online', 'Desactualizado', $zone);

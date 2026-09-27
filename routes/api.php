@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Controllers\EngineAudioController;
 use App\Http\Controllers\EngineController;
 use App\Http\Middleware\AuthenticateEngine;
 use Illuminate\Support\Facades\Route;
+
+Route::get('v1/engine/audio/{engine}/{song}', EngineAudioController::class)
+    ->middleware('throttle:60,1')->name('engine.audio');
 
 Route::prefix('v1/engine')->name('engine.')->middleware(['throttle:engine', AuthenticateEngine::class])->group(function (): void {
     Route::post('sessions', [EngineController::class, 'session'])->name('sessions');

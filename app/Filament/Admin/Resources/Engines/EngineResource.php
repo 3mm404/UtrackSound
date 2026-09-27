@@ -83,6 +83,18 @@ class EngineResource extends Resource
                     $configuration->enqueueStop($record, (string) $data['zone_id']);
                     Notification::make()->title('Orden pendiente de confirmación')->success()->send();
                 }),
+            Action::make('playback')->label('Control de audio')->schema([
+                Select::make('zone_id')->label('Zona')->options(fn (Engine $record): array => $record->zones()->pluck('name', 'id')->all())->required(),
+                Select::make('action')->label('Acción')->options([
+                    'play' => 'Reproducir', 'pause' => 'Pausar', 'resume' => 'Reanudar',
+                    'next' => 'Siguiente', 'previous' => 'Anterior',
+                ])->required(),
+            ])->visible(fn (Engine $record): bool => Gate::allows('update', $record))
+                ->action(function (Engine $record, array $data, EngineConfiguration $configuration): void {
+                    Gate::authorize('update', $record);
+                    $configuration->enqueue($record, (string) $data['zone_id'], $data['action']);
+                    Notification::make()->title('Orden pendiente de reproducción')->success()->send();
+                }),
         ]);
     }
 

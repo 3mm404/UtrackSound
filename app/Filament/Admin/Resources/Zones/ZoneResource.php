@@ -56,7 +56,8 @@ class ZoneResource extends Resource
                 TextInput::make('name')
                     ->required(),
                 TextInput::make('output_channel'),
-                Select::make('channel_mode')->options(['mono' => 'Mono', 'stereo' => 'Estéreo'])->default('stereo')->required(),
+                Select::make('channel_mode')->options(['mono' => 'Mono', 'stereo' => 'Estéreo'])->default('stereo')->required()
+                    ->helperText('Con salida compartida, el modo se elige en el engine y se muestra en el reporte.'),
                 TextInput::make('volume')
                     ->required()
                     ->numeric()
@@ -97,6 +98,18 @@ class ZoneResource extends Resource
                 TextColumn::make('business.name')
                     ->searchable(),
                 TextColumn::make('engine.name')->label('Equipo')->placeholder('Sin asignar'),
+                TextColumn::make('playback_state')->label('Reproducción')
+                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['state'] ?? null)
+                    ->placeholder('Sin reporte'),
+                TextColumn::make('playing_song')->label('Canción reportada (ID)')
+                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['song_id'] ?? null)
+                    ->placeholder('Sin canción'),
+                TextColumn::make('applied_mode')->label('Modo reportado')
+                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['channel_mode'] ?? null)
+                    ->placeholder('Pendiente'),
+                TextColumn::make('playback_error')->label('Error de audio')
+                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['error']['message'] ?? null)
+                    ->placeholder('—')->wrap(),
                 TextColumn::make('applied_volume')->label('Volumen reportado')
                     ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['volume'] ?? null)
                     ->placeholder('Pendiente'),

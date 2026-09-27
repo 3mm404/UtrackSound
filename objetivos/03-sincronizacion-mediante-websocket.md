@@ -53,7 +53,7 @@ La ruta PHP requiere acceso fuera del sandbox en este entorno. La prueba real li
 ## Continuidad hacia el objetivo 04
 
 1. Partir de este cierre y del [CHECKPOINT del workspace](../../CHECKPOINT.md); no reinstalar ni reimplementar Reverb, el cliente privado o la deduplicación.
-2. Revisar el enunciado del objetivo 04 antes de comenzar: todavía no está documentado en esta carpeta y este cierre no define su alcance.
+2. Consultar el [cierre del objetivo 04: engine multizona](04%20-Preparar-el-engine-para-varias-zonas.md), que documenta reproducción local independiente por zona y sus límites frente al agente remoto.
 3. Reutilizar `music-engine/internal/control/` para sincronización y `internal/player/` para el reproductor existente si el siguiente objetivo requiere audio. Mantener explícito `configuration_only` hasta implementar y verificar cualquier perfil de reproducción nuevo.
 4. Conservar `ENGINE_STATE_DIR`: contiene la deduplicación. Mantener pruebas de reconexión y confirmaciones al extender el runtime.
 5. Aplicar las reglas de continuidad: etapas pequeñas, verificaciones relevantes y actualización del checkpoint después de cada etapa importante.

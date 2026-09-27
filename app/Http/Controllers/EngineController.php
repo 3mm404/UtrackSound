@@ -19,8 +19,8 @@ class EngineController extends Controller
     {
         $data = $request->validate([
             'engine_version' => ['required', 'string', 'max:100'],
-            'capabilities' => ['required', 'array', 'contains:configuration_only'],
-            'capabilities.*' => ['string', 'max:100'],
+            'capabilities' => ['required', 'array', 'size:1'],
+            'capabilities.*' => ['string', 'in:configuration_only,shared_stereo_mp3,shared_mono_mp3'],
         ]);
         $engine = $request->attributes->get('engine');
         $engine->forceFill([
@@ -32,11 +32,11 @@ class EngineController extends Controller
             'device_id' => (string) $engine->id, 'business_id' => (string) $engine->business_id,
             'session_id' => $engine->session_id, 'last_seen_at' => null,
             'heartbeat_interval_seconds' => 10, 'poll_interval_seconds' => config('engine.poll_interval_seconds'),
-            'websocket' => [
+            'websocket' => config('engine.websocket_url') ? [
                 'url' => config('engine.websocket_url'),
                 'key' => config('broadcasting.connections.reverb.key'),
                 'channel' => 'private-engines.'.$engine->id,
-            ],
+            ] : null,
         ]], 201);
     }
 
@@ -52,7 +52,7 @@ class EngineController extends Controller
         return response()->json(['data' => $commands->map(fn ($command): array => [
             'command_id' => (string) $command->id, 'sequence' => (int) $command->sequence,
             'zone_id' => (string) $command->zone_id, 'config_revision' => (int) $command->config_revision,
-            'action' => $command->action, 'created_at' => $command->created_at->toISOString(),
+            'action' => $command->action, 'song_id' => $command->song_id, 'created_at' => $command->created_at->toISOString(),
             'expires_at' => $command->expires_at->toISOString(),
         ])]);
     }
@@ -120,6 +120,14 @@ class EngineController extends Controller
                 $reported['channel_mode'] !== $zone['channel_mode'] ||
                 $reported['playlist_id'] !== ($zone['playlist']['playlist_id'] ?? null)) {
                 throw ValidationException::withMessages(['zones' => 'Estado ajeno a la configuración aplicada.']);
+            }
+            if ($reported['output'] !== $zone['output'] || ($reported['song_id'] !== null &&
+                ! in_array($reported['song_id'], array_column($zone['playlist']['songs'] ?? [], 'song_id'), true))) {
+                throw ValidationException::withMessages(['zones' => 'Canción o salida ajena a la configuración aplicada.']);
+            }
+            if (in_array($reported['state'], ['playing', 'paused', 'loading', 'recovering'], true) &&
+                ($reported['song_id'] === null || $reported['output'] === null)) {
+                throw ValidationException::withMessages(['zones' => 'El estado activo requiere canción y salida.']);
             }
         }
     }

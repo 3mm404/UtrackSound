@@ -46,6 +46,7 @@ it('synchronizes through real Laravel Reverb and Go and recovers pending work af
         'ENGINE_WEBSOCKET_URL' => 'ws://127.0.0.1:'.$wsPort,
         // No fallback poll can hide a failed subscription or missed notification.
         'ENGINE_POLL_INTERVAL_SECONDS' => '300',
+        'ENGINE_PROFILE' => 'configuration_only',
     ];
     $processes = [];
     $start = function (array $command, array $extra = [], ?string $workingDirectory = null) use (&$processes, $environment): Process {
@@ -105,7 +106,7 @@ it('synchronizes through real Laravel Reverb and Go and recovers pending work af
         $waitUntil(fn (): bool => ($engine->refresh()->observed_state['zones'][0]['volume'] ?? null) === 15, 'Initial config was not applied');
         $waitUntil(fn (): bool => str_contains($reverb->getOutput(), 'pusher:subscribe'), 'Agent did not subscribe to the private Reverb channel');
         expect($engine->isOnline())->toBeTrue();
-        expect($engine->engine_version)->toBe('0.2.0');
+        expect($engine->engine_version)->toBe('0.5.0');
 
         $newPlaylist = Playlist::create(['business_id' => $engine->business_id, 'name' => 'Updated']);
         $zone->update(['volume' => 65, 'playlist_id' => $newPlaylist->id]);

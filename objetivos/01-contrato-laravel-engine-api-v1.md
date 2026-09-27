@@ -14,7 +14,7 @@ Este archivo es la fuente de verdad compartida. Los cambios de contrato deben re
 - La descarga completa es asíncrona. Los estados adicionales de heartbeat son `loading` y `recovering`; el agente informa `playing` solo cuando el audio se ha abierto. También informa `paused`, `stopped` y `error`. `position_ms` permanece null.
 - Las acciones se inician en orden de secuencia, pero una carga pendiente no bloquea otras zonas ni Stop/cambios posteriores. Una carga reemplazada por una orden válida recibe `command_superseded`. El resultado de play/next/previous se persiste al resolver la carga. La recuperación de registros `started` tras caída conserva `execution_unknown`.
 - Tras un 403 se obtiene config y se reintenta una vez la misma canción/versión; otro fallo terminal produce `audio_download_failed`. Un cambio de asignación o contenido durante la recuperación detiene la carga y no reproduce contenido antiguo.
-- El panel refleja estados, canción, modo y error. No hay avance automático ni preparación de la siguiente canción; corresponden al objetivo 06.
+- El panel refleja estados, canción, modo y error. No hay avance automático ni preparación de la siguiente canción; quedan para un objetivo posterior al 06 redefinido por el usuario.
 
 Las secciones siguientes mantienen el contrato base. Cuando difieren en capacidad física, estados de carga o secuenciación durante descargas, prevalece esta extensión para los dos perfiles compartidos.
 
@@ -145,7 +145,7 @@ Laravel crea las órdenes desde su capa autenticada de administración; esa API 
 
 | Acción | Semántica |
 | --- | --- |
-| `play` | Reproduce desde el inicio la selección actual; primera canción si no hay selección. |
+| `play` | Con `song_id` string selecciona una canción de la playlist; sin él o null reinicia la selección actual. Primera canción si no hay selección. Requiere engine >= 0.6.0 para selección explícita. |
 | `pause` | Pausa conservando posición; si ya está pausado, éxito sin cambio. Sin pista cargada falla `no_track`. |
 | `resume` | Reanuda desde la posición conservada; si ya reproduce, éxito sin cambio. Sin pista cargada falla `no_track`. |
 | `stop` | Detiene y libera audio, conserva selección y volumen; repetida no cambia nada. |

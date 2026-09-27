@@ -24,6 +24,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -101,76 +102,83 @@ class ZoneResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->poll('3s')
+            ->poll('5s')
             ->recordTitleAttribute('name')
+            ->recordAction(null)
+            ->contentGrid(['xl' => 2])
             ->columns([
-                TextColumn::make('name')->label('Zona')->searchable()->weight('bold'),
-                TextColumn::make('business.name')
-                    ->searchable()->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('engine.name')->label('Equipo')->placeholder('Sin asignar'),
-                TextColumn::make('playback_state')->label('Reproducción')
-                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['state'] ?? null)
-                    ->badge()->formatStateUsing(fn (string $state): string => match ($state) {
-                        'playing' => 'Reproduciendo', 'paused' => 'En pausa', 'stopped' => 'Detenida',
-                        'loading' => 'Cargando', 'recovering' => 'Recuperando', 'error' => 'Error', default => $state,
-                    })->color(fn (string $state): string => match ($state) {
-                        'playing' => 'success', 'error' => 'danger', 'loading', 'recovering' => 'warning', default => 'gray',
-                    })
-                    ->description(fn (Zone $record) => $record->reportedState()['error']['message'] ?? null)
-                    ->placeholder('Sin reporte'),
-                TextColumn::make('playing_song')->label('Canción seleccionada')
-                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['song_id'] ?? null)
-                    ->formatStateUsing(fn ($state, Zone $record) => $record->playlist?->songs->firstWhere('id', $state)?->title ?? $state)
-                    ->placeholder('Sin canción'),
-                TextColumn::make('applied_mode')->label('Modo reportado')
-                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['channel_mode'] ?? null)
-                    ->placeholder('Pendiente')->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('playback_error')->label('Error de audio')
-                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['error']['message'] ?? null)
-                    ->placeholder('—')->wrap()->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('applied_volume')->label('Volumen reportado')
-                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['volume'] ?? null)
-                    ->placeholder('Pendiente'),
-                TextColumn::make('applied_playlist')->label('Playlist reportada (ID)')
-                    ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['playlist_id'] ?? null)
-                    ->placeholder('Sin playlist')->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('engine_online')->label('Estado del reporte')
-                    ->state(fn (Zone $record): string => $record->engine?->isOnline() ? 'Actual' : 'Desactualizado'),
-                TextColumn::make('configuration_status')->label('Confirmación de ajustes')
-                    ->state(fn (Zone $record): string => $record->configurationStatus())
-                    ->description(fn (Zone $record) => $record->engine?->observed_state['config_error']['message'] ?? null)->wrap(),
-                TextColumn::make('configuration_error')->label('Error de configuración')
-                    ->state(fn (Zone $record) => $record->engine?->observed_state['config_error']['message'] ?? null)->placeholder('—')->wrap()->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('command_status')->label('Última orden')
-                    ->state(fn (Zone $record): ?string => $record->latestCommand && $record->latestCommand->engine_id == $record->engine_id
-                        ? $record->latestCommand?->action.': '.$record->latestCommand?->statusLabel() : null)
-                    ->description(fn (Zone $record): ?string => $record->latestCommand?->engine_id == $record->engine_id
-                        ? ($record->latestCommand?->result['error']['message'] ?? null) : null)
-                    ->placeholder('Sin órdenes')->wrap(),
-                TextColumn::make('playlist.name')
-                    ->searchable(),
-                TextColumn::make('output_channel')
-                    ->searchable()->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('volume')
-                    ->numeric()
-                    ->sortable()->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                Stack::make([
+                    TextColumn::make('name')->label('Zona')->searchable()->weight('bold'),
+                    TextColumn::make('business.name')
+                        ->searchable()->hidden(),
+                    TextColumn::make('engine.name')->label('Equipo')->placeholder('Equipo sin asignar')->color('gray'),
+                    TextColumn::make('playback_state')->label('Reproducción')
+                        ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['state'] ?? null)
+                        ->badge()->formatStateUsing(fn (string $state): string => match ($state) {
+                            'playing' => 'Reproduciendo', 'paused' => 'En pausa', 'stopped' => 'Detenida',
+                            'loading' => 'Cargando', 'recovering' => 'Recuperando', 'error' => 'Error', default => $state,
+                        })->color(fn (string $state): string => match ($state) {
+                            'playing' => 'success', 'error' => 'danger', 'loading', 'recovering' => 'warning', default => 'gray',
+                        })
+                        ->description(fn (Zone $record) => $record->reportedState()['error']['message'] ?? null)
+                        ->placeholder('Sin reporte'),
+                    TextColumn::make('playing_song')->label('Canción seleccionada')
+                        ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['song_id'] ?? null)
+                        ->formatStateUsing(fn ($state, Zone $record) => 'Canción: '.($record->playlist?->songs->firstWhere('id', $state)?->title ?? $state))
+                        ->placeholder('Sin canción'),
+                    TextColumn::make('applied_mode')->label('Modo reportado')
+                        ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['channel_mode'] ?? null)
+                        ->placeholder('Pendiente')->hidden(),
+                    TextColumn::make('playback_error')->label('Error de audio')
+                        ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['error']['message'] ?? null)
+                        ->placeholder('—')->wrap()->hidden(),
+                    TextColumn::make('applied_volume')->label('Volumen reportado')
+                        ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['volume'] ?? null)
+                        ->formatStateUsing(fn ($state, Zone $record): string => 'Volumen: '.$state.'% · Solicitado: '.$record->volume.'%')
+                        ->placeholder('Pendiente'),
+                    TextColumn::make('applied_playlist')->label('Playlist reportada (ID)')
+                        ->state(fn (Zone $record) => collect($record->engine?->observed_state['zones'] ?? [])->firstWhere('zone_id', (string) $record->id)['playlist_id'] ?? null)
+                        ->placeholder('Sin playlist')->hidden(),
+                    TextColumn::make('engine_online')->label('Estado del reporte')
+                        ->state(fn (Zone $record): string => $record->engine?->isOnline() ? 'Actual' : 'Desactualizado')
+                        ->formatStateUsing(fn (string $state): string => 'Reporte: '.$state)
+                        ->color(fn (Zone $record): string => $record->engine?->isOnline() ? 'success' : 'warning'),
+                    TextColumn::make('configuration_status')->label('Confirmación de ajustes')
+                        ->state(fn (Zone $record): string => $record->configurationStatus())
+                        ->description(fn (Zone $record) => $record->engine?->observed_state['config_error']['message'] ?? null)->wrap(),
+                    TextColumn::make('configuration_error')->label('Error de configuración')
+                        ->state(fn (Zone $record) => $record->engine?->observed_state['config_error']['message'] ?? null)->placeholder('—')->wrap()->hidden(),
+                    TextColumn::make('command_status')->label('Última orden')
+                        ->state(fn (Zone $record): ?string => $record->latestCommand && $record->latestCommand->engine_id == $record->engine_id
+                            ? $record->latestCommand?->action.': '.$record->latestCommand?->statusLabel() : null)
+                        ->description(fn (Zone $record): ?string => $record->latestCommand?->engine_id == $record->engine_id
+                            ? ($record->latestCommand?->result['error']['message'] ?? null) : null)
+                        ->formatStateUsing(fn (string $state): string => 'Última orden: '.$state)
+                        ->placeholder('Sin órdenes')->wrap(),
+                    TextColumn::make('playlist.name')
+                        ->searchable()->formatStateUsing(fn (string $state): string => 'Playlist: '.$state)->placeholder('Sin playlist'),
+                    TextColumn::make('output_channel')
+                        ->searchable()->hidden(),
+                    TextColumn::make('volume')
+                        ->numeric()
+                        ->sortable()->hidden(),
+                    TextColumn::make('created_at')
+                        ->dateTime()
+                        ->sortable()
+                        ->hidden(),
+                    TextColumn::make('updated_at')
+                        ->dateTime()
+                        ->sortable()
+                        ->hidden(),
+                ])->space(1),
             ])
             ->filters([
                 //
             ])
             ->recordActions([
                 self::playAction(),
-                ActionGroup::make(array_map(fn (string $action, string $label): Action => self::transportAction($action, $label),
-                    ['pause', 'resume', 'stop', 'next', 'previous'], ['Pausar', 'Reanudar', 'Detener', 'Siguiente', 'Anterior']))
-                    ->label('Transporte')->button(),
+                ...array_map(fn (string $action, string $label): Action => self::transportAction($action, $label),
+                    ['pause', 'resume', 'stop', 'next', 'previous'], ['Pausar', 'Reanudar', 'Detener', 'Siguiente', 'Anterior']),
                 self::settingsAction(),
                 Action::make('history')->label('Órdenes')->modalHeading('Historial de la zona')
                     ->modalContent(fn (Zone $record) => view('filament.zone-command-history', [
@@ -218,6 +226,7 @@ class ZoneResource extends Resource
     private static function playAction(): Action
     {
         return Action::make('play')->label('Reproducir')->icon('heroicon-o-play')
+            ->modalSubmitActionLabel('Reproducir')->modalCancelActionLabel('Cancelar')
             ->visible(fn (Zone $record): bool => self::canControl($record))
             ->schema([
                 Select::make('song_id')->label('Canción')->searchable()
@@ -237,6 +246,7 @@ class ZoneResource extends Resource
     private static function settingsAction(): Action
     {
         return Action::make('settings')->label('Volumen / Playlist')
+            ->modalSubmitActionLabel('Guardar ajustes')->modalCancelActionLabel('Cancelar')
             ->visible(fn (Zone $record): bool => self::canControl($record))
             ->fillForm(fn (Zone $record): array => ['volume' => $record->volume, 'playlist_id' => $record->playlist_id])
             ->schema([

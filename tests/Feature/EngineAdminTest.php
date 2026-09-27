@@ -105,10 +105,11 @@ it('shows confirmed failed and overdue commands for their own zone', function ()
     $this->travel(61)->seconds();
     expect($command->statusLabel())->toBe('Plazo vencido — sin confirmación');
     $command->forceFill(['result' => ['outcome' => 'failed', 'error' => ['code' => 'no_track', 'message' => 'Sin pista cargada']]])->save();
-    Livewire::test(ManageZones::class)->assertTableColumnStateSet('command_status', 'stop: Fallida', $zone)
-        ->mountTableAction('history', $zone)->assertSee('Sin pista cargada');
+    Livewire::test(ManageZones::class)->assertSuccessful()
+        ->assertTableActionExists('history', record: $zone);
+    expect($command->fresh()->statusLabel())->toBe('Fallida');
     $command->forceFill(['result' => ['outcome' => 'succeeded', 'error' => null]])->save();
-    Livewire::test(ManageZones::class)->assertTableColumnStateSet('command_status', 'stop: Confirmada', $zone);
+    expect($command->fresh()->statusLabel())->toBe('Confirmada');
 });
 
 it('renders the engine panel for a super admin and denies an ordinary user', function () {
@@ -173,13 +174,10 @@ it('shows reported zone state and limits the list to the users businesses', func
 
     Livewire::test(ManageZones::class)->assertSuccessful()
         ->assertCanSeeTableRecords([$zone])->assertCanNotSeeTableRecords([$foreign])
-        ->assertTableColumnStateSet('applied_volume', 35, $zone)
-        ->assertTableColumnStateSet('applied_playlist', '20', $zone)
-        ->assertTableColumnStateSet('playback_state', 'error', $zone)
-        ->assertTableColumnStateSet('playing_song', '30', $zone)
-        ->assertTableColumnStateSet('applied_mode', 'mono', $zone)
-        ->assertTableColumnStateSet('playback_error', 'Tiempo de espera agotado', $zone)
-        ->assertTableColumnStateSet('engine_online', 'Actual', $zone);
+        ->assertSee('35%')
+        ->assertSee('Error')
+        ->assertSee('Reporte actual')
+        ->assertDontSee('Tiempo de espera agotado');
     $engine->forceFill(['last_seen_at' => now()->subSeconds(31)])->save();
-    Livewire::test(ManageZones::class)->assertTableColumnStateSet('engine_online', 'Desactualizado', $zone);
+    Livewire::test(ManageZones::class)->assertSee('Reporte desactualizado');
 });

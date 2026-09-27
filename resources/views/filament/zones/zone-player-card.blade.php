@@ -29,6 +29,12 @@
         ->firstWhere('id', $songId);
 
     $online = $record->engine?->isOnline() ?? false;
+    $canControl = \Illuminate\Support\Facades\Gate::allows('update', $record)
+        && $record->engine !== null
+        && \Illuminate\Support\Facades\Gate::allows('update', $record->engine);
+    $canView = \Illuminate\Support\Facades\Gate::allows('view', $record);
+    $canEdit = \Illuminate\Support\Facades\Gate::allows('update', $record);
+    $canDelete = \Illuminate\Support\Facades\Gate::allows('delete', $record);
 
     $volume = $reportedVolume
         ?? $record->volume
@@ -42,7 +48,7 @@
 
 
 <div
-    class="group flex h-full flex-col rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md sm:p-6 dark:border-white/10 dark:bg-gray-900 dark:hover:border-white/20"
+    class="group flex min-h-[28rem] w-full max-w-96 flex-col rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md sm:p-6 dark:border-white/10 dark:bg-gray-900 dark:hover:border-white/20"
 >
 
     {{-- HEADER --}}
@@ -68,18 +74,62 @@
         </div>
 
 
-        <span @class([
-            'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
-            'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300' => $online,
-            'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-300' => ! $online,
-        ])>
+        <div class="flex shrink-0 items-center gap-2">
             <span @class([
-                'h-1.5 w-1.5 rounded-full',
-                'bg-success-500' => $online,
-                'bg-danger-500' => ! $online,
-            ]) aria-hidden="true"></span>
-            {{ $online ? 'Online' : 'Offline' }}
-        </span>
+                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
+                'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300' => $online,
+                'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-300' => ! $online,
+            ])>
+                <span @class([
+                    'h-1.5 w-1.5 rounded-full',
+                    'bg-success-500' => $online,
+                    'bg-danger-500' => ! $online,
+                ]) aria-hidden="true"></span>
+                {{ $online ? 'Online' : 'Offline' }}
+            </span>
+
+            @if ($canView || $canEdit || $canDelete)
+                <x-filament::dropdown placement="bottom-end">
+                    <x-slot name="trigger">
+                        <button
+                            type="button"
+                            aria-label="Más acciones para {{ $record->name }}"
+                            title="Más acciones"
+                            class="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                        >
+                            <x-filament::icon icon="heroicon-o-ellipsis-vertical" class="h-5 w-5" />
+                        </button>
+                    </x-slot>
+
+                    <div class="min-w-40 space-y-1 rounded-xl border border-gray-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-gray-800">
+                        @if ($canView)
+                            <button type="button" wire:click="mountTableAction('view', '{{ $record->getKey() }}')" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5">
+                                <x-filament::icon icon="heroicon-o-eye" class="h-4 w-4" />
+                                Ver
+                            </button>
+                            <button type="button" wire:click="mountTableAction('history', '{{ $record->getKey() }}')" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5">
+                                <x-filament::icon icon="heroicon-o-clipboard-document-list" class="h-4 w-4" />
+                                Órdenes
+                            </button>
+                        @endif
+
+                        @if ($canEdit)
+                            <button type="button" wire:click="mountTableAction('edit', '{{ $record->getKey() }}')" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/5">
+                                <x-filament::icon icon="heroicon-o-pencil-square" class="h-4 w-4" />
+                                Editar
+                            </button>
+                        @endif
+
+                        @if ($canDelete)
+                            <button type="button" wire:click="mountTableAction('delete', '{{ $record->getKey() }}')" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-danger-600 hover:bg-danger-50 dark:text-danger-400 dark:hover:bg-danger-500/10">
+                                <x-filament::icon icon="heroicon-o-trash" class="h-4 w-4" />
+                                Eliminar
+                            </button>
+                        @endif
+                    </div>
+                </x-filament::dropdown>
+            @endif
+        </div>
 
     </div>
 
@@ -92,12 +142,11 @@
                 text-xs
                 font-medium
                 uppercase
-                tracking-wider
                 text-gray-500
                 dark:text-gray-400
             "
         >
-                AHORA SUENA
+            AHORA SUENA
         </p>
 
 
@@ -118,6 +167,7 @@
 
 
     {{-- CONTROLES --}}
+    @if ($canControl)
     <div
         class="
             mt-6
@@ -186,6 +236,7 @@
         </button>
 
     </div>
+    @endif
 
 
     {{-- PLAYLIST --}}
@@ -284,14 +335,16 @@
         </div>
 
 
-        <button
-            type="button"
-            wire:click="mountTableAction('settings', '{{ $record->getKey() }}')"
-            class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-400/10 dark:hover:text-primary-300"
-        >
-            <x-filament::icon icon="heroicon-o-cog-6-tooth" class="h-4 w-4" />
-            Ajustes
-        </button>
+        @if ($canControl)
+            <button
+                type="button"
+                wire:click="mountTableAction('settings', '{{ $record->getKey() }}')"
+                class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-primary-600 transition hover:bg-primary-50 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:text-primary-400 dark:hover:bg-primary-400/10 dark:hover:text-primary-300"
+            >
+                <x-filament::icon icon="heroicon-o-cog-6-tooth" class="h-4 w-4" />
+                Ajustes
+            </button>
+        @endif
 
     </div>
 

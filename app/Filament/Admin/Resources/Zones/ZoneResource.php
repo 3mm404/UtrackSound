@@ -11,9 +11,7 @@ use App\Services\EngineConfiguration;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
@@ -24,8 +22,6 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Columns\ViewColumn;
-use Filament\Tables\Enums\RecordCheckboxPosition;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -106,18 +102,6 @@ class ZoneResource extends Resource
             ->recordTitleAttribute('name')
             ->recordAction(null)
 
-            ->contentGrid([
-                'md' => 1,
-                'lg' => 2,
-            ])
-            ->recordCheckboxPosition(RecordCheckboxPosition::AfterCells)
-
-            ->columns([
-                ViewColumn::make('player')
-                    ->label('')
-                    ->view('filament.zones.zone-player-card'),
-            ])
-
             ->filters([
                 //
             ])
@@ -168,12 +152,6 @@ class ZoneResource extends Resource
                     DeleteAction::make(),
                 ])
                     ->label('Administrar'),
-            ])
-
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
             ]);
     }
 

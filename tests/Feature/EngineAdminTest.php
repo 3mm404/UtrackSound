@@ -39,6 +39,40 @@ function zoneControlFixture(): array
     return [$engine, $zone->refresh(), $song];
 }
 
+it('creates and edits zones from the dashboard using the existing resource actions', function () {
+    [$engine, $zone] = zoneControlFixture();
+
+    Livewire::test(ManageZones::class)->callAction('create', [
+        'business_id' => $engine->business_id,
+        'engine_id' => $engine->id,
+        'playlist_id' => $zone->playlist_id,
+        'name' => 'Terraza',
+        'output_channel' => 'line-2',
+        'channel_mode' => 'stereo',
+        'volume' => 45,
+    ])->assertHasNoActionErrors();
+
+    $createdZone = Zone::query()->where('name', 'Terraza')->firstOrFail();
+
+    Livewire::test(ManageZones::class)->callTableAction('edit', $createdZone, [
+        'business_id' => $engine->business_id,
+        'engine_id' => $engine->id,
+        'playlist_id' => $createdZone->playlist_id,
+        'name' => 'Terraza norte',
+        'output_channel' => 'line-3',
+        'channel_mode' => 'mono',
+        'volume' => 55,
+    ])->assertHasNoTableActionErrors();
+
+    $this->assertDatabaseHas('zones', [
+        'id' => $createdZone->id,
+        'name' => 'Terraza norte',
+        'output_channel' => 'line-3',
+        'channel_mode' => 'mono',
+        'volume' => 55,
+    ]);
+});
+
 it('sends each transport from the zone without confirming execution prematurely', function (string $action) {
     [$engine, $zone, $song] = zoneControlFixture();
     Livewire::test(ManageZones::class)->assertSuccessful()
@@ -173,7 +207,7 @@ it('shows reported zone state and limits the list to the users businesses', func
     $this->actingAs($user);
 
     Livewire::test(ManageZones::class)->assertSuccessful()
-        ->assertCanSeeTableRecords([$zone])->assertCanNotSeeTableRecords([$foreign])
+        ->assertSee('Lobby visible')->assertDontSee('Lobby privado')
         ->assertSee('35%')
         ->assertSee('Error')
         ->assertSee('Reporte actual')

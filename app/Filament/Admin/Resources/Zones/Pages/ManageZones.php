@@ -10,6 +10,8 @@ class ManageZones extends ManageRecords
 {
     protected static string $resource = ZoneResource::class;
 
+    protected string $view = 'filament.admin.resources.zones.pages.manage-zones';
+
     protected function getHeaderActions(): array
     {
         return [

@@ -1,0 +1,12 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/Admin/**/*';
+@source '../../../../resources/views/filament/**/*.blade.php';
+
+.zone-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 24rem));
+    align-items: stretch;
+    justify-content: start;
+    gap: 1.25rem;
+}

@@ -1,0 +1,85 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - app-storage:/var/www/html/storage/app
+      - app-public-storage:/var/www/html/storage/app/public
+    networks:
+      - utrack
+
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+    depends_on:
+      app:
+        condition: service_started
+    volumes:
+      - app-storage:/var/www/html/storage/app
+    networks:
+      - utrack
+
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    depends_on:
+      app:
+        condition: service_started
+    ports:
+      - "${REVERB_PORT:-8081}:8080"
+    networks:
+      - utrack
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-utrack}
+      MYSQL_USER: ${DB_USERNAME:-utrack}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set DB_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - utrack
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - utrack
+
+volumes:
+  app-storage:
+  app-public-storage:
+  mysql-data:
+  redis-data:
+
+networks:
+  utrack:

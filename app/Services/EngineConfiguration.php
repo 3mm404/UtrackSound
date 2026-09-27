@@ -20,16 +20,19 @@ class EngineConfiguration
             $profile = $this->audio->profile($engine);
             $playback = $profile !== 'configuration_only';
             $metadata = [];
-            $zones = $engine->zones()->with('playlist.songs')->orderBy('id')->get()->map(function (Zone $zone) use ($playback, $profile, &$metadata): array {
+            $zones = $engine->zones()->with('playlist.songs')->orderBy('id')->get()->map(function (Zone $zone, int $index) use ($playback, $profile, &$metadata): array {
                 $playlist = $zone->playlist;
                 if ($playlist && $playlist->business_id !== $zone->business_id) {
                     throw ValidationException::withMessages(['playlist_id' => 'La playlist no pertenece al negocio.']);
                 }
 
+                $channelCount = $profile === EngineAudio::MONO_PROFILE ? 1 : 2;
+                $firstChannel = $index * $channelCount + 1;
+
                 return [
                     'zone_id' => (string) $zone->id, 'name' => $zone->name, 'volume' => (int) $zone->volume,
                     'channel_mode' => $playback ? ($profile === EngineAudio::MONO_PROFILE ? 'mono' : 'stereo') : $zone->channel_mode,
-                    'output' => $playback ? ['device_id' => 'default', 'channels' => [1, 2]] : null,
+                    'output' => $playback ? ['device_id' => 'default', 'channels' => range($firstChannel, $firstChannel + $channelCount - 1)] : null,
                     'playlist' => $playlist ? [
                         'playlist_id' => (string) $playlist->id, 'name' => $playlist->name,
                         'songs' => $playlist->songs->map(function ($song) use ($playback, &$metadata): array {

@@ -105,7 +105,7 @@ it('accepts actual playback reports and rejects a foreign song or output', funct
         'zones' => [['zone_id' => (string) $zone->id, 'state' => 'playing',
             'playlist_id' => (string) $zone->playlist_id, 'song_id' => (string) $song->id,
             'position_ms' => null, 'volume' => $zone->volume, 'channel_mode' => $mode,
-            'output' => ['device_id' => 'default', 'channels' => [1, 2]], 'error' => null]]];
+            'output' => ['device_id' => 'default', 'channels' => $mode === 'mono' ? [1] : [1, 2]], 'error' => null]]];
     $this->postJson('/api/v1/engine/heartbeat', $report)->assertOk();
     expect($engine->refresh()->observed_state['zones'][0]['state'])->toBe('playing');
     $report['report_sequence']++;
@@ -115,6 +115,31 @@ it('accepts actual playback reports and rejects a foreign song or output', funct
     $report['zones'][0]['output']['channels'] = [2, 1];
     $this->postJson('/api/v1/engine/heartbeat', $report)->assertUnprocessable();
 })->with([EngineAudio::PROFILE, EngineAudio::MONO_PROFILE]);
+
+it('assigns exclusive channels to three zones and accepts their playback reports', function (string $profile, array $channels) {
+    [$engine, $song, $first] = audioEngine($profile);
+    foreach (['B', 'C'] as $name) {
+        Zone::create(['business_id' => $engine->business_id, 'engine_id' => $engine->id,
+            'playlist_id' => $first->playlist_id, 'name' => $name, 'channel_mode' => 'stereo']);
+    }
+
+    $config = $this->getJson('/api/v1/engine/config')->assertOk()->json('data');
+
+    expect(array_column(array_column($config['zones'], 'output'), 'channels'))->toBe($channels);
+    $report = ['report_sequence' => 1, 'observed_at' => now()->toISOString(),
+        'applied_config_revision' => $config['config_revision'], 'config_error' => null,
+        'zones' => array_map(fn (array $zone): array => [
+            'zone_id' => $zone['zone_id'], 'state' => 'playing',
+            'playlist_id' => $zone['playlist']['playlist_id'], 'song_id' => (string) $song->id,
+            'position_ms' => null, 'volume' => $zone['volume'], 'channel_mode' => $zone['channel_mode'],
+            'output' => $zone['output'], 'error' => null,
+        ], $config['zones'])];
+    $this->postJson('/api/v1/engine/heartbeat', $report)->assertOk();
+    expect($engine->refresh()->observed_state['zones'])->toBe($report['zones']);
+})->with([
+    'stereo pairs' => [EngineAudio::PROFILE, [[1, 2], [3, 4], [5, 6]]],
+    'mono channels' => [EngineAudio::MONO_PROFILE, [[1], [2], [3]]],
+]);
 
 it('queues each supported playback action and rejects foreign zones', function (string $action) {
     [$engine, $song, $zone] = audioEngine();

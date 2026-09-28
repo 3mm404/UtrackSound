@@ -7,6 +7,15 @@ if [ -z "${APP_KEY:-}" ]; then
 fi
 
 mkdir -p storage/app/public storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+if [ "${DB_CONNECTION:-}" = "sqlite" ]; then
+    if [ "${DB_DATABASE:-}" != "/var/www/html/storage/app/private/database.sqlite" ]; then
+        echo "SQLite requires DB_DATABASE=/var/www/html/storage/app/private/database.sqlite"
+        exit 1
+    fi
+    mkdir -p "$(dirname "$DB_DATABASE")"
+    touch "$DB_DATABASE"
+fi
+
 php artisan storage:link --force
 php artisan config:cache
 php artisan route:cache

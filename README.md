@@ -18,8 +18,8 @@ docker compose build app
 docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show
 ```
 
-Antes de construir, completar en `.env` las claves `DB_PASSWORD` y
-`DB_ROOT_PASSWORD`. Guardar la clave generada en `APP_KEY` y conservarla
+El demo usa SQLite, sin usuario ni contrasena de base de datos.
+Guardar la clave generada en `APP_KEY` y conservarla
 entre despliegues. Configurar `APP_URL`, `ENGINE_MEDIA_URL`, las credenciales
 `REVERB_APP_*` y `ENGINE_WEBSOCKET_URL`; su ultimo segmento debe coincidir
 con `REVERB_APP_KEY`. Las credenciales de ejemplo deben reemplazarse.
@@ -33,7 +33,7 @@ HTTPS del host para el dominio hacia ese puerto, con soporte WebSocket en
 sobrescribir `Host` con el dominio publico y `X-Forwarded-Proto` con `https`.
 No exponer directamente el puerto de la app: Nginx confia en ese encabezado
 del proxy local para generar las URLs HTTPS y validar las firmas del audio.
-MySQL, Redis y Reverb no publican puertos en el host.
+Redis y Reverb no publican puertos en el host.
 
 ```bash
 docker compose config --quiet
@@ -45,8 +45,9 @@ docker compose exec app php artisan make:filament-user
 
 Solo `app` ejecuta las migraciones al iniciar; las colas y Reverb esperan su
 healthcheck. No se cargan datos de demostracion ni usuarios automaticamente.
-Los archivos privados y publicos comparten `app-storage`; MySQL y Redis
-tienen volumenes persistentes. Respaldar la base de datos, los archivos y
+Los archivos y SQLite comparten el volumen persistente `app-storage`.
+La base se crea en `storage/app/private/database.sqlite`, fuera del directorio
+publico. Redis conserva su propio volumen. Respaldar la base de datos, los archivos y
 `.env` antes de actualizar; `docker compose down -v` elimina los volumenes.
 Si se migra desde el Compose anterior, respaldar tambien
 `app-public-storage` y copiar su contenido al directorio `public` de
@@ -56,6 +57,25 @@ Para actualizar, traer los cambios de la rama y repetir
 `docker compose up -d --build`. Verificar el panel, la subida de audio y la
 conexion del motor tras cada despliegue. La construccion necesita acceso a
 los registros de imagenes, Composer, npm y al proveedor de fuentes de Vite.
+
+### Cambiar el demo de MySQL a SQLite
+
+Actualizar los archivos del despliegue y reemplazar el bloque `DB_*` del
+`.env` existente con el bloque SQLite de `.env.docker.example`. Eliminar
+`DB_URL` si existe. Conservar `APP_KEY` y el resto de los secretos.
+La base SQLite empieza vacia: este cambio no importa datos de MySQL.
+
+```bash
+docker stop utracksound-mysql-1
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 app
+```
+
+El contenedor anterior puede aparecer como huerfano; su volumen permanece
+intacto. No ejecutar `down -v` ni eliminar volumenes. Crear el usuario del
+panel con `docker compose exec app php artisan make:filament-user`.
 
 ## About Laravel
 

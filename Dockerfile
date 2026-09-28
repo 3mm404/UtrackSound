@@ -1,6 +1,6 @@
 FROM php:8.5-fpm-bookworm AS php-base
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx supervisor curl unzip \
+    && apt-get install -y --no-install-recommends nginx supervisor curl unzip ffmpeg \
         libfreetype6-dev libjpeg62-turbo-dev libpng-dev libzip-dev libicu-dev libonig-dev libsqlite3-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" bcmath gd intl mbstring pcntl pdo_mysql pdo_sqlite zip \

@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Engine;
 use App\Models\Song;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\ValidationException;
@@ -30,19 +32,32 @@ class EngineAudio
         $root = realpath(Storage::disk('local')->path('songs'));
         $path = realpath(Storage::disk('local')->path($song->file_path));
         if (! $root || ! $path || ! str_starts_with($path, $root.DIRECTORY_SEPARATOR) || ! is_file($path)) {
-            throw ValidationException::withMessages(['audio' => 'Audio privado no disponible; importe o cargue el MP3.']);
+            throw ValidationException::withMessages(['audio' => 'Audio privado no disponible; importe o cargue el archivo.']);
         }
 
-        return $path;
+        $size = filesize($path);
+        if ($size === false || $size > 32 * 1024 * 1024) {
+            throw ValidationException::withMessages(['audio' => 'Se requiere audio de hasta 32 MiB.']);
+        }
+
+        if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'mp3' && $this->compatibleFormat($path) !== null) {
+            return $path;
+        }
+
+        return $this->normalize($path);
     }
 
     public function metadata(Song $song): array
     {
         $path = $this->path($song);
-        $size = filesize($path);
-        if ($size === false || $size > 32 * 1024 * 1024 || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'mp3') {
-            throw ValidationException::withMessages(['audio' => 'Se requiere MP3 de hasta 32 MiB.']);
-        }
+
+        return ['song_id' => (string) $song->id, 'content_version' => hash_file('sha256', $path),
+            'format' => $this->compatibleFormat($path)];
+    }
+
+    /** @return array{container: string, codec: string, mime_type: string, sample_rate_hz: int, channels: int, duration_ms: null, bit_rate_bps: null}|null */
+    private function compatibleFormat(string $path): ?array
+    {
         $file = fopen($path, 'rb');
         try {
             $header = fread($file, 10);
@@ -78,12 +93,78 @@ class EngineAudio
                 continue;
             }
 
-            return ['song_id' => (string) $song->id, 'content_version' => hash_file('sha256', $path),
-                'format' => ['container' => 'mp3', 'codec' => 'mp3', 'mime_type' => 'audio/mpeg',
-                    'sample_rate_hz' => 44100, 'channels' => (ord($bytes[$i + 3]) >> 6) === 3 ? 1 : 2,
-                    'duration_ms' => null, 'bit_rate_bps' => null]];
+            return ['container' => 'mp3', 'codec' => 'mp3', 'mime_type' => 'audio/mpeg',
+                'sample_rate_hz' => 44100, 'channels' => (ord($bytes[$i + 3]) >> 6) === 3 ? 1 : 2,
+                'duration_ms' => null, 'bit_rate_bps' => null];
         }
-        throw ValidationException::withMessages(['audio' => 'El perfil requiere MP3 MPEG-1 Layer III de 44100 Hz.']);
+
+        return null;
+    }
+
+    private function normalize(string $source): string
+    {
+        $disk = Storage::disk('local');
+        $disk->makeDirectory('engine-audio');
+        $target = $disk->path('engine-audio/'.hash_file('sha256', $source).'-mp3-v1.mp3');
+        $lock = fopen($target.'.lock', 'c');
+        if ($lock === false) {
+            throw ValidationException::withMessages(['audio' => 'No se pudo preparar el audio en el servidor.']);
+        }
+        $temporary = null;
+        try {
+            if (! flock($lock, LOCK_EX | LOCK_NB)) {
+                throw ValidationException::withMessages(['audio' => 'El audio se está preparando. Intente reproducirlo de nuevo en unos segundos.']);
+            }
+            if (is_file($target) && filesize($target) <= 32 * 1024 * 1024 && $this->compatibleFormat($target) !== null) {
+                return $target;
+            }
+            $temporary = tempnam(dirname($target), 'convert-');
+            if ($temporary === false) {
+                throw ValidationException::withMessages(['audio' => 'No se pudo crear el audio temporal en el servidor.']);
+            }
+            try {
+                $result = Process::timeout(config('engine.audio_conversion_timeout'))->run([
+                    config('engine.ffmpeg_path'), '-nostdin', '-hide_banner', '-loglevel', 'error', '-y',
+                    '-protocol_whitelist', 'file', '-f', $this->inputFormat($source), '-i', $source,
+                    '-map', '0:a:0', '-vn', '-map_metadata', '-1', '-ac', '2', '-ar', '44100',
+                    '-c:a', 'libmp3lame', '-b:a', '192k', '-threads', '1',
+                    '-fs', '33554433', '-f', 'mp3', $temporary,
+                ]);
+            } catch (ProcessTimedOutException) {
+                throw ValidationException::withMessages(['audio' => 'La conversión del audio excedió el tiempo permitido.']);
+            }
+            if ($result->failed()) {
+                throw ValidationException::withMessages(['audio' => 'No se pudo convertir el audio. Compruebe que el archivo sea válido y que FFmpeg esté instalado en el servidor.']);
+            }
+            clearstatcache(true, $temporary);
+            if (filesize($temporary) > 32 * 1024 * 1024) {
+                throw ValidationException::withMessages(['audio' => 'El audio convertido supera los 32 MiB permitidos por el motor. Use una pista más corta.']);
+            }
+            if ($this->compatibleFormat($temporary) === null || ! rename($temporary, $target)) {
+                throw ValidationException::withMessages(['audio' => 'No se pudo generar un MP3 compatible para el motor.']);
+            }
+
+            return $target;
+        } finally {
+            if (is_string($temporary) && is_file($temporary)) {
+                unlink($temporary);
+            }
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    private function inputFormat(string $path): string
+    {
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'mp3' => 'mp3',
+            'wav', 'wave' => 'wav',
+            'flac' => 'flac',
+            'aac' => 'aac',
+            'm4a', 'mp4' => 'mov',
+            'ogg', 'oga', 'opus' => 'ogg',
+            default => throw ValidationException::withMessages(['audio' => 'Formato no admitido. Use MP3, WAV, FLAC, AAC, M4A u OGG.']),
+        };
     }
 
     public function grant(Engine $engine): string

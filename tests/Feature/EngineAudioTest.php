@@ -7,6 +7,8 @@ use App\Models\Zone;
 use App\Services\EngineAudio;
 use App\Services\EngineConfiguration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -166,6 +168,7 @@ it('imports public audio into private storage without overwriting different cont
 });
 
 it('rejects unsupported media and paths outside private songs', function (string $kind) {
+    Process::fake(fn () => Process::result(exitCode: 1));
     [$engine, $song] = audioEngine();
     if ($kind === 'format') {
         Storage::disk('local')->put($song->file_path, 'not mp3');
@@ -175,3 +178,162 @@ it('rejects unsupported media and paths outside private songs', function (string
     }
     $this->getJson('/api/v1/engine/config')->assertUnprocessable()->assertJsonPath('error.code', 'validation_failed');
 })->with(['format', 'path']);
+
+it('converts audio and serves a cached compatible copy while preserving the original', function (string $extension) {
+    [$engine, $song] = audioEngine();
+    $song->update(['file_path' => 'songs/source.'.$extension]);
+    Storage::disk('local')->put($song->file_path, 'source audio');
+    $converted = str_repeat("\xff\xfb\x90\x00".str_repeat("\0", 413), 3);
+    Process::fake(function (PendingProcess $process) use ($converted) {
+        file_put_contents($process->command[array_key_last($process->command)], $converted);
+
+        return Process::result();
+    });
+
+    $config = $this->getJson('/api/v1/engine/config')->assertOk()->json('data');
+    $audio = $config['zones'][0]['playlist']['songs'][0];
+    $this->flushHeaders();
+    $response = $this->get($audio['audio_url'])->assertOk()->assertHeader('Content-Type', 'audio/mpeg');
+
+    expect($audio['format']['sample_rate_hz'])->toBe(44100);
+    expect($audio['content_version'])->toBe(hash('sha256', $converted));
+    expect(file_get_contents($response->baseResponse->getFile()->getPathname()))->toBe($converted);
+    expect(Storage::disk('local')->get($song->file_path))->toBe('source audio');
+    Process::assertRanTimes(fn (PendingProcess $process) => is_array($process->command)
+        && in_array('44100', $process->command, true)
+        && in_array('libmp3lame', $process->command, true), 1);
+})->with(['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg', 'opus']);
+
+it('keeps compatible MP3 audio unchanged without invoking conversion', function () {
+    [$engine, $song] = audioEngine();
+    Process::fake();
+
+    $path = app(EngineAudio::class)->path($song);
+
+    expect($path)->toBe(realpath(Storage::disk('local')->path($song->file_path)));
+    Process::assertNothingRan();
+});
+
+it('rebuilds converted audio when the source changes and denies the old URL', function () {
+    [$engine, $song] = audioEngine();
+    Storage::disk('local')->put($song->file_path, 'first source');
+    $frame = "\xff\xfb\x90\x00".str_repeat("\0", 413);
+    $conversion = 0;
+    Process::fake(function (PendingProcess $process) use ($frame, &$conversion) {
+        file_put_contents($process->command[array_key_last($process->command)], str_repeat($frame, 3 + $conversion++));
+
+        return Process::result();
+    });
+    $audio = app(EngineAudio::class);
+    $first = $audio->metadata($song);
+    $url = $audio->authorize($engine, $first)['audio_url'];
+    Storage::disk('local')->put($song->file_path, 'second source');
+
+    $second = $audio->metadata($song);
+
+    expect($second['content_version'])->not->toBe($first['content_version']);
+    $this->flushHeaders();
+    $this->get($url)->assertForbidden();
+    Process::assertRanTimes(fn () => true, 2);
+});
+
+it('returns 422 and removes partial output when conversion fails or produces invalid audio', function (int $exitCode) {
+    [$engine, $song] = audioEngine();
+    Storage::disk('local')->put($song->file_path, 'unsupported audio');
+    Process::fake(function (PendingProcess $process) use ($exitCode) {
+        file_put_contents($process->command[array_key_last($process->command)], 'incomplete');
+
+        return Process::result(exitCode: $exitCode);
+    });
+
+    $this->getJson('/api/v1/engine/config')->assertUnprocessable()->assertJsonPath('error.code', 'validation_failed');
+
+    expect(glob(Storage::disk('local')->path('engine-audio/convert-*')))->toBe([]);
+    expect(glob(Storage::disk('local')->path('engine-audio/*.mp3')))->toBe([]);
+    Process::assertRanTimes(fn () => true, 1);
+})->with(['failed command' => 1, 'invalid output' => 0]);
+
+it('normalizes real audio at different sample rates with FFmpeg', function (string $extension, int $rate) {
+    $binary = getenv('FFMPEG_TEST_BINARY');
+    if (! $binary) {
+        $this->markTestSkipped('Set FFMPEG_TEST_BINARY to run real audio conversion tests.');
+    }
+    [$engine, $song] = audioEngine();
+    config(['engine.ffmpeg_path' => $binary]);
+    $song->update(['file_path' => 'songs/real.'.$extension]);
+    $source = Storage::disk('local')->path($song->file_path);
+    Process::run([$binary, '-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i',
+        'sine=frequency=440:sample_rate='.$rate.':duration=0.2', $source])->throw();
+    $originalHash = hash_file('sha256', $source);
+
+    $audio = app(EngineAudio::class);
+    $metadata = $audio->metadata($song);
+    $output = $audio->path($song);
+
+    expect($metadata['format']['sample_rate_hz'])->toBe(44100);
+    expect(hash_file('sha256', $source))->toBe($originalHash);
+    expect(Process::run([$binary, '-nostdin', '-v', 'error', '-i', $output, '-f', 'null', '-'])->successful())->toBeTrue();
+})->with([
+    'MP3 8000' => ['mp3', 8000], 'MP3 11025' => ['mp3', 11025],
+    'MP3 12000' => ['mp3', 12000], 'MP3 16000' => ['mp3', 16000],
+    'MP3 22050' => ['mp3', 22050], 'MP3 24000' => ['mp3', 24000],
+    'MP3 32000' => ['mp3', 32000], 'MP3 44100' => ['mp3', 44100],
+    'MP3 48000' => ['mp3', 48000], 'WAV 96000' => ['wav', 96000],
+    'FLAC 192000' => ['flac', 192000], 'AAC 48000' => ['aac', 48000],
+    'M4A 96000' => ['m4a', 96000], 'OGG 48000' => ['ogg', 48000],
+]);
+
+it('normalizes a supplied real song without modifying the original', function () {
+    $binary = getenv('FFMPEG_TEST_BINARY');
+    $fixture = getenv('ENGINE_TEST_SOURCE_AUDIO');
+    if (! $binary || ! $fixture) {
+        $this->markTestSkipped('Set FFMPEG_TEST_BINARY and ENGINE_TEST_SOURCE_AUDIO for an external audio fixture.');
+    }
+    [$engine, $song] = audioEngine();
+    config(['engine.ffmpeg_path' => $binary]);
+    Storage::disk('local')->put($song->file_path, file_get_contents($fixture));
+    $originalHash = hash_file('sha256', $fixture);
+
+    $metadata = app(EngineAudio::class)->metadata($song);
+
+    expect($metadata['format']['sample_rate_hz'])->toBe(44100);
+    expect($metadata['content_version'])->not->toBe($originalHash);
+    expect(hash_file('sha256', $fixture))->toBe($originalHash);
+});
+
+it('rejects converted audio larger than the engine limit instead of serving a truncated track', function () {
+    [$engine, $song] = audioEngine();
+    Storage::disk('local')->put($song->file_path, 'source');
+    Process::fake(function (PendingProcess $process) {
+        $file = fopen($process->command[array_key_last($process->command)], 'wb');
+        ftruncate($file, 32 * 1024 * 1024 + 1);
+        fclose($file);
+
+        return Process::result();
+    });
+
+    expect(fn () => app(EngineAudio::class)->path($song))->toThrow(ValidationException::class,
+        'El audio convertido supera los 32 MiB permitidos por el motor. Use una pista más corta.');
+
+    expect(glob(Storage::disk('local')->path('engine-audio/convert-*')))->toBe([]);
+    expect(glob(Storage::disk('local')->path('engine-audio/*.mp3')))->toBe([]);
+    Process::assertRanTimes(fn () => true, 1);
+});
+
+it('returns a retryable validation message while another request converts the same source', function () {
+    [$engine, $song] = audioEngine();
+    Storage::disk('local')->put($song->file_path, 'source');
+    Storage::disk('local')->makeDirectory('engine-audio');
+    $lock = fopen(Storage::disk('local')->path('engine-audio/'.hash('sha256', 'source').'-mp3-v1.mp3.lock'), 'c');
+    flock($lock, LOCK_EX);
+    Process::fake();
+
+    try {
+        expect(fn () => app(EngineAudio::class)->path($song))->toThrow(ValidationException::class,
+            'El audio se está preparando. Intente reproducirlo de nuevo en unos segundos.');
+        Process::assertNothingRan();
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+});

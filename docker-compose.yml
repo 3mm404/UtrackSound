@@ -1,52 +1,55 @@
+x-app: &app
+  image: utrack-demo:local
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  env_file: .env
+  volumes:
+    - app-storage:/var/www/html/storage/app
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file: .env
+    <<: *app
+    environment:
+      RUN_MIGRATIONS: "true"
     depends_on:
       mysql:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     ports:
-      - "${APP_PORT:-8080}:80"
-    volumes:
-      - app-storage:/var/www/html/storage/app
-      - app-public-storage:/var/www/html/storage/app/public
-    networks:
-      - utrack
+      - "${APP_BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8088}:80"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1/up"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   queue:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file: .env
-    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90
+    <<: *app
+    environment:
+      RUN_MIGRATIONS: "false"
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=90 --max-time=3600
+    stop_grace_period: 100s
     depends_on:
       app:
-        condition: service_started
-    volumes:
-      - app-storage:/var/www/html/storage/app
-    networks:
-      - utrack
+        condition: service_healthy
 
   reverb:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    env_file: .env
+    <<: *app
+    environment:
+      RUN_MIGRATIONS: "false"
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     depends_on:
       app:
-        condition: service_started
-    ports:
-      - "${REVERB_PORT:-8081}:8080"
-    networks:
-      - utrack
+        condition: service_healthy
 
   mysql:
     image: mysql:8.4
@@ -59,12 +62,11 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql -h 127.0.0.1 -u \"$${MYSQL_USER}\" -D \"$${MYSQL_DATABASE}\" -e 'SELECT 1' >/dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 10
-    networks:
-      - utrack
+      retries: 15
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
@@ -72,14 +74,13 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
-    networks:
-      - utrack
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   app-storage:
-  app-public-storage:
   mysql-data:
   redis-data:
-
-networks:
-  utrack:

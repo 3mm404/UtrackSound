@@ -7,6 +7,56 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Demo en VPS con Docker Compose
+
+Rama: `deploy/demo`. Ejecutar desde `utrack-fly` con Docker Engine y Compose v2.
+El motor ASIO de `music-engine` se ejecuta en Windows y se conecta al VPS.
+
+```bash
+cp .env.docker.example .env
+docker compose build app
+docker compose run --rm --no-deps --entrypoint php app artisan key:generate --show
+```
+
+Antes de construir, completar en `.env` las claves `DB_PASSWORD` y
+`DB_ROOT_PASSWORD`. Guardar la clave generada en `APP_KEY` y conservarla
+entre despliegues. Configurar `APP_URL`, `ENGINE_MEDIA_URL`, las credenciales
+`REVERB_APP_*` y `ENGINE_WEBSOCKET_URL`; su ultimo segmento debe coincidir
+con `REVERB_APP_KEY`. Las credenciales de ejemplo deben reemplazarse.
+`REVERB_HOST=reverb` es la direccion interna para publicar eventos.
+
+El puerto HTTP solo escucha en `127.0.0.1:8088` del VPS. Si ya existe un
+`.env` de despliegue, actualizar `APP_PORT=8088` tambien en ese archivo.
+Configurar el proxy
+HTTPS del host para el dominio hacia ese puerto, con soporte WebSocket en
+`/app/`, timeout de 3600 segundos y limite de subida de 110 MB. El proxy debe
+sobrescribir `Host` con el dominio publico y `X-Forwarded-Proto` con `https`.
+No exponer directamente el puerto de la app: Nginx confia en ese encabezado
+del proxy local para generar las URLs HTTPS y validar las firmas del audio.
+MySQL, Redis y Reverb no publican puertos en el host.
+
+```bash
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 app queue reverb
+docker compose exec app php artisan make:filament-user
+```
+
+Solo `app` ejecuta las migraciones al iniciar; las colas y Reverb esperan su
+healthcheck. No se cargan datos de demostracion ni usuarios automaticamente.
+Los archivos privados y publicos comparten `app-storage`; MySQL y Redis
+tienen volumenes persistentes. Respaldar la base de datos, los archivos y
+`.env` antes de actualizar; `docker compose down -v` elimina los volumenes.
+Si se migra desde el Compose anterior, respaldar tambien
+`app-public-storage` y copiar su contenido al directorio `public` de
+`app-storage`, ya que el volumen separado anterior deja de montarse.
+
+Para actualizar, traer los cambios de la rama y repetir
+`docker compose up -d --build`. Verificar el panel, la subida de audio y la
+conexion del motor tras cada despliegue. La construccion necesita acceso a
+los registros de imagenes, Composer, npm y al proveedor de fuentes de Vite.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

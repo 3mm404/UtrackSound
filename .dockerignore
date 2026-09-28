@@ -10,6 +10,13 @@ storage/framework/sessions/*
 storage/framework/views/*
 public/build
 public/storage
+public/hot
+storage/app/*
+bootstrap/cache/*.php
+database/*.sqlite*
+.agents
+.claude
+.ai
 docker-compose*.yml
 compose*.yaml
 Dockerfile*
